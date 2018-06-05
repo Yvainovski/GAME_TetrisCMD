@@ -9,15 +9,20 @@
 #include <thread>
 using namespace std;
 
-// Console
-static int CONSOLE_W = 40;
-static int CONSOLE_H = 40;
-static char* buf_display;
+// Console Configs
+static int CONSOLE_W = 44;
+static int CONSOLE_H = 44;
 static HANDLE console_screen;
 static DWORD chars_written = 0;
+static char* buf_display = 0;
 
 // Game Stats
+static int game_speed = 500;  // milisecond pause between frames
 static int score = 0;
+
+void bufCleanUp() {
+    if (buf_display) delete buf_display;
+}
 
 void handleErrorExit(string msg, DWORD err) {
     SetConsoleActiveScreenBuffer(GetStdHandle(STD_OUTPUT_HANDLE));
@@ -26,7 +31,14 @@ void handleErrorExit(string msg, DWORD err) {
     cout << "Enter any key to exit..." << endl;
     cin.ignore();
     cin.get();
+
+    bufCleanUp();
     exit(1);
+}
+
+void handleNormalExit() {
+    bufCleanUp();
+    exit(0);
 }
 
 void clearDisplay() {
@@ -44,24 +56,23 @@ void initPlayField() {
                               (short)(CONSOLE_H - 1)};
     // Init empty display buf
     buf_display = new char[CONSOLE_W * CONSOLE_H];
-    clearDisplay();
 
     // create and set console screen buf
     console_screen = CreateConsoleScreenBuffer(
         GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
     SetConsoleTitle(window_title.c_str());
     // resize console size
-    if (!SetConsoleWindowInfo(console_screen, TRUE, &min_window_size)) {
+    if (!SetConsoleWindowInfo(console_screen, TRUE, &min_window_size))
         handleErrorExit("Failed resizing window(1st)", GetLastError());
-    }
+
     if (!SetConsoleScreenBufferSize(console_screen,
-                                    {(short)CONSOLE_W, (short)CONSOLE_H})) {
+                                    {(short)CONSOLE_W, (short)CONSOLE_H}))
         handleErrorExit("Failed resizing screen buffer", GetLastError());
-    }
-    if (!SetConsoleWindowInfo(console_screen, TRUE, &window_size)) {
+
+    if (!SetConsoleWindowInfo(console_screen, TRUE, &window_size))
         handleErrorExit("Failed resizing window(2nd)", GetLastError());
-    }
-    // Activate new scrren
+
+    // Disable console window resize, and activate new scrren
     HWND console_window = FindWindow(NULL, window_title.c_str());
     SetWindowPos(console_window, HWND_TOPMOST, 10, 10, 0, 0, SWP_NOSIZE);
     SetWindowLong(console_window, GWL_STYLE,
@@ -102,13 +113,15 @@ void startGameLoop() {
         clearDisplay();
         handleKeyPress();
         if (GetAsyncKeyState(VK_ESCAPE)) {
-            score++;
-            Sleep(1000);
+            // score++;
+            // Sleep(1000);
+            handleNormalExit();
         }
 
         updateScore();
         drawBoundaries();
         updateDidplay();
+        Sleep(game_speed);
     }
 }
 

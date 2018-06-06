@@ -21,7 +21,7 @@ static int game_speed = 500;  // milisecond pause between frames
 static int score = 0;
 
 void bufCleanUp() {
-    if (buf_display) delete buf_display;
+    if (buf_display) delete[] buf_display;
 }
 
 void handleErrorExit(string msg, DWORD err) {
@@ -81,25 +81,31 @@ void initPlayField() {
     SetConsoleActiveScreenBuffer(console_screen);
 }
 
-void handleKeyPress() { return; }
+
 
 void drawBoundaries() {
     for (int y = 0; y < CONSOLE_H; y++) {
         for (int x = 0; x < CONSOLE_W; x++) {
-            if (x == 1 || y == 1 || x == CONSOLE_W - 2 || y == CONSOLE_H - 2) {
-                if (x > 0 && y > 1 && x < CONSOLE_W - 1 && y < CONSOLE_H - 1)
-                    buf_display[y * CONSOLE_W + x] = '#';
-                else if (y == 1)
-                    buf_display[y * CONSOLE_W + x] = '~';
+            if (x > 0 && x < CONSOLE_W - 1 && y > 0 && y < CONSOLE_H - 1) {
+                if (x == 1 || x == CONSOLE_W - 2)
+                    buf_display[y * CONSOLE_W + x] = 186;  // left,right
+                if (y == CONSOLE_H - 2)
+                    buf_display[y * CONSOLE_W + x] = 205;  // bottom
+                if (y == 1) 
+                    buf_display[y * CONSOLE_W + x] = 196;  // upper
             }
         }
     }
+    buf_display[1 * CONSOLE_W + 1] = 214;  //Upper left
+    buf_display[1 * CONSOLE_W + (CONSOLE_W - 2)] = 183;  //upper right
+    buf_display[(CONSOLE_H - 2) * CONSOLE_W + 1] = 200;  //bottom left
+    buf_display[(CONSOLE_H - 2) * CONSOLE_W + (CONSOLE_W - 2)] = 188; //bottom right
 }
 
 void updateScore() {
     stringstream msg_score;
     msg_score << "Score: " << score;
-    strcpy(&buf_display[1], msg_score.str().c_str());
+    strcpy(&buf_display[2], msg_score.str().c_str());
 }
 
 void updateDidplay() {
@@ -108,15 +114,19 @@ void updateDidplay() {
                                  &chars_written);
 }
 
+void handleKeyPress() {
+    if (GetAsyncKeyState(VK_ESCAPE)) {
+        // score++;
+        // Sleep(1000);
+        handleNormalExit();
+    }
+}
+
 void startGameLoop() {
     while (1) {
         clearDisplay();
         handleKeyPress();
-        if (GetAsyncKeyState(VK_ESCAPE)) {
-            // score++;
-            // Sleep(1000);
-            handleNormalExit();
-        }
+        
 
         updateScore();
         drawBoundaries();

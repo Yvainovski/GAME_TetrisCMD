@@ -44,11 +44,14 @@
   */
 
 #include <Windows.h>
+#include <math.h>
 #include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>
 #include <vector>
+#include <map>
+#define MATH_PI 3.141592653
 using namespace std;
 
 // Console Configs
@@ -57,7 +60,7 @@ static const int CONSOLE_H = 44;
 static HANDLE console_screen;
 static DWORD chars_written = 0;
 static char* buf_display = 0;
-static vector<string> tetrominoes;
+static map<char, vector<string>> tetromino_types;
 
 // Game Stats
 static const int TETRO_W = 10;
@@ -94,25 +97,76 @@ void ClearDisplay() {
     }
 }
 
-void InitTetrominos(){
-    string I = "";
-    string O = "";
-    string Z = "";
-    string T = "";
-    string L = "";
+// Make all tetroes (╯°□°）╯︵ [_]||
+void InitTetrominoes(){
+    vector<string> Is = {"","","",""};
+    vector<string> Os;
+    vector<string> Zs;
+    vector<string> Ts;
+    vector<string> Ls;
+    
+    // string I = "";
+    // string O = "";
+    // string Z = "";
+    // string T = "";
+    // string L = "";
+    string tmp = "";
 
-    I += "....\xDB\xDB....";
-    I += "....\xDB\xDB....";  
-    I += "....\xDB\xDB....";  
-    I += "....\xDB\xDB....";
+    // I1
+    tmp += "....\xDB\xDB....";
+    tmp += "....\xDB\xDB....";  
+    tmp += "....\xDB\xDB....";  
+    tmp += "....\xDB\xDB....";
+    Is.insert(Is.begin(),tmp);
+    Is.insert(Is.begin()+2,tmp);
+    tmp = "";
+    // I2
+    tmp += "..........";
+    tmp += ".\xDB\xDB\xDB\xDB\xDB\xDB\xDB\xDB.";  
+    tmp += "..........";
+    tmp += "..........";
+    Is.insert(Is.begin()+1,tmp);
+    Is.insert(Is.begin()+3,tmp);
+    tmp = "";
    
+    // T1
+    tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";  
+    tmp += "....\xDB\xDB....";
+    tmp += "..........";
+    tmp += "..........";
+    Ts.push_back(tmp);
+    tmp = "";
+    // T2
+    tmp += ".....\xDB\xDB...";
+    tmp += "...\xDB\xDB\xDB\xDB...";  
+    tmp += ".....\xDB\xDB..."; 
+    tmp += "..........";
+    Ts.push_back(tmp);
+    tmp = "";
 
-    tetrominoes.push_back(I);
-    tetrominoes.push_back(O);
-    tetrominoes.push_back(Z);
-    tetrominoes.push_back(T);
-    tetrominoes.push_back(L);
+    tetromino_types['I'] = Is;
+    tetromino_types['T'] = Ts;
+    // tetrominoes.push_back(I);
+    // tetrominoes.push_back(O);
+    // tetrominoes.push_back(Z);
+    // tetrominoes.push_back(T);
+    // tetrominoes.push_back(L);
 }
+
+
+
+// // Angle: 0, 90, 180, 270
+// char RotateTetromino(string const& tetromino, int x, int y, int angle) {
+//     int loc;
+//     switch(angle){
+//         case 0:
+//             break;
+//         case 90:
+//             break;
+//     }
+    
+//     return  tetromino[dy * TETRO_W + dx];
+// }
 
 // Initialize display console screen
 void InitPlayField() {
@@ -124,7 +178,7 @@ void InitPlayField() {
     // Init empty display buf
     buf_display = new char[CONSOLE_W * CONSOLE_H];
     // Init all Tetronimoes 
-    InitTetrominos();
+    InitTetrominoes();
 
     // create console screen buf and set window name
     console_screen = CreateConsoleScreenBuffer(
@@ -160,22 +214,23 @@ void DrawBoundaries() {
                 if (y == CONSOLE_H - 2)
                     buf_display[y * CONSOLE_W + x] = 205;  // bottom
                 if (y == 1) 
-                    buf_display[y * CONSOLE_W + x] = 196;  // upper
+                    buf_display[y * CONSOLE_W + x] = '_';  // upper 196
             }
         }
     }
-    buf_display[1 * CONSOLE_W + 1] = 214;  //Upper left
-    buf_display[1 * CONSOLE_W + (CONSOLE_W - 2)] = 183;  //upper right
+    buf_display[1 * CONSOLE_W + 1] = '_';  //Upper left 214
+    buf_display[1 * CONSOLE_W + (CONSOLE_W - 2)] = '_';  //upper right 183
     buf_display[(CONSOLE_H - 2) * CONSOLE_W + 1] = 200;  //bottom left
     buf_display[(CONSOLE_H - 2) * CONSOLE_W + (CONSOLE_W - 2)] = 188; //bottom right
 }
 
 // Draw the falling tetromino
 void DrawTetromino() {
-    string tetromino = tetrominoes[0];
+    string tetromino = tetromino_types['I'][3];
     for (int y = 0; y < TETRO_H; y++) {
         for (int x = 0; x < TETRO_W; x++) {
             char pixel = tetromino[y * TETRO_W + x];
+            // pixel = RotateTetromino(tetromino, x, y, 90);
             if(pixel != '.' || true) {
                 buf_display[(tetro_y + y) * CONSOLE_W + (tetro_x + x)] = pixel;
             }
@@ -197,9 +252,6 @@ void RenderDidplay() {
 
 void HandleKeyPress() {
     if (GetAsyncKeyState(VK_ESCAPE)) {
-        
-        // score++;
-        // Sleep(1000);
         HandleNormalExit();
     }
 }

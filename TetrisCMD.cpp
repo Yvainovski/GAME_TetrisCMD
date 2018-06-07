@@ -45,12 +45,13 @@
 
 #include <Windows.h>
 #include <math.h>
+#include <time.h>
 #include <chrono>
 #include <iostream>
-#include <sstream>
-#include <thread>
-#include <vector>
 #include <map>
+#include <sstream>
+#include <stdlib.h>
+#include <vector>
 #define MATH_PI 3.141592653
 using namespace std;
 
@@ -63,19 +64,24 @@ static char* buf_display = 0;
 static map<char, vector<string>> tetromino_repo;
 
 // Game Stats
+static BOOL* buf_relics = 0;  // holds tetromino relics
 enum TetroType { I, O, Z, T, L, S, J};
 static const int NUM_TETRO_TYPE = 7;
 static const int TETRO_W = 10;
 static const int TETRO_H = 4;
-static int tetro_x = 0 ;  // init xpos at the middle
+static const int SLEEP_TIME = 20;
+static const int GAME_SPEED = 20;  // milisecond pause between frames
+static int speed_count = 0;
+static int tetro_x = CONSOLE_W / 2 - TETRO_W / 2 ;  // init xpos at the middle
 static int tetro_y = 2;  // init y pos on the top
-static int cur_tetro_type = 0;
-static int cur_tetro_orientation = 0;
-static int game_speed = 50;  // milisecond pause between frames
+static int cur_tetro_type = 0; 
+static int cur_tetro_orientation = 0;    
 static int score = 0;
+static BOOL vk_up_down = FALSE;  // If VK_UP is pressed
 
 void BufCleanUp() {
     if (buf_display) delete[] buf_display;
+    if (buf_relics) delete[] buf_relics;
 }
 
 void HandleNormalExit() {
@@ -95,9 +101,14 @@ void HandleErrorExit(string msg, DWORD err) {
     exit(1);
 }
 
+// Clear display buf. Only clear content inside the boundries 
 void ClearDisplay() {
-    for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
-        buf_display[i] = ' ';
+    for(int y = 2; y < CONSOLE_H - 2; y++){
+        for(int x = 2; x < CONSOLE_W -2; x++){
+            if(buf_relics[y * CONSOLE_W + x] != TRUE){
+                buf_display[y * CONSOLE_W + x] = ' ';
+            }
+        }
     }
 }
 
@@ -111,7 +122,6 @@ void InitTetrominoes(){
     vector<string> Ss(4);
     vector<string> Js(4);
 
-    
     // tmp var for making tetromino blocks
     string tmp = "";
 
@@ -160,7 +170,6 @@ void InitTetrominoes(){
     Zs[1] = tmp;
     Zs[3] = tmp;
     tmp = "";
-
    
     // T0
     tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";  
@@ -266,8 +275,6 @@ void InitTetrominoes(){
     Js[3] = tmp;
     tmp = "";
    
-   
-
     tetromino_repo[TetroType::I] = Is;
     tetromino_repo[TetroType::O] = Os;
     tetromino_repo[TetroType::Z] = Zs;
@@ -278,33 +285,20 @@ void InitTetrominoes(){
 
 }
 
-
-
-
-
-
-// // Angle: 0, 90, 180, 270
-// char RotateTetromino(string const& tetromino, int x, int y, int angle) {
-//     int loc;
-//     switch(angle){
-//         case 0:
-//             break;
-//         case 90:
-//             break;
-//     }
-    
-//     return  tetromino[dy * TETRO_W + dx];
-// }
-
-// Initialize display console screen
+// Initialize display console screen and init all variables
 void InitPlayField() {
     // console screen settings
     string window_title = "TetrisCMD - MapleDate";
     SMALL_RECT min_window_size = {0, 0, (short)1, (short)1};
     SMALL_RECT window_size = {0, 0, (short)(CONSOLE_W - 1),
                               (short)(CONSOLE_H - 1)};
-    // Init empty display buf
+    // Init empty display buf and relic buf
     buf_display = new char[CONSOLE_W * CONSOLE_H];
+    buf_relics = new BOOL[CONSOLE_W * CONSOLE_H];
+    for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
+            buf_display[i] = ' ';
+            buf_relics[i] = FALSE;
+    }
     // Init all Tetronimoes 
     InitTetrominoes();
 
@@ -340,7 +334,7 @@ void DrawBoundaries() {
                 if (x == 1 || x == CONSOLE_W - 2)
                     buf_display[y * CONSOLE_W + x] = 186;  // left,right
                 if (y == CONSOLE_H - 2)
-                    buf_display[y * CONSOLE_W + x] = 205;  // bottom
+                    buf_display[y * CONSOLE_W + x] = 207;  // bottom 205
                 if (y == 1) 
                     buf_display[y * CONSOLE_W + x] = '_';  // upper 196
             }
@@ -352,18 +346,14 @@ void DrawBoundaries() {
     buf_display[(CONSOLE_H - 2) * CONSOLE_W + (CONSOLE_W - 2)] = 188; //bottom right
 }
 
-void ShowMsg(stringstream const& t){
-    strcpy(&buf_display[50], t.str().c_str());
+// Display a message at a specific position on the screen
+void ShowMsg(stringstream const& t, int pos =(CONSOLE_H-1)*CONSOLE_W+5){
+    strcpy(&buf_display[pos], t.str().c_str());
 }
 
 // Draw the falling tetromino
 void DrawTetromino() {
     string tetromino = tetromino_repo[cur_tetro_type][cur_tetro_orientation];
-    // string tetromino = tetromino_repo[5][1];
-    stringstream t;
-    t << "TYPE "<< cur_tetro_type << ", ORI" << cur_tetro_orientation;
-    t << " t_X:"<< tetro_x << ", t_Y:" <<tetro_y;
-    // ShowMsg(t);
     for (int y = 0; y < TETRO_H; y++) {
         for (int x = 0; x < TETRO_W; x++) {
             char pixel = tetromino[y * TETRO_W + x];
@@ -376,14 +366,16 @@ void DrawTetromino() {
 }
 
 // check if tetro collides with other cells for a movement.
-// dx: horizontal changes. dy: vertical changes.
-BOOL NoCollision(int dx, int dy){
+// dx: horizontal changes. dy: vertical changes. dr: orientation changes
+BOOL NoCollision(int dx, int dy, int dr){
     int cur_x = tetro_x + dx;
     int cur_y = tetro_y + dy;
-    
+    int cur_orit = cur_tetro_orientation + dr;
+    cur_orit = cur_orit >= 4 ? 0 : cur_orit;
+
     for(int y = 0 ; y < TETRO_H; y++){
         for(int x = 0; x < TETRO_W; x++){
-            string tetro = tetromino_repo[cur_tetro_type][cur_tetro_orientation];
+            string tetro = tetromino_repo[cur_tetro_type][cur_orit];
             if(tetro[y * TETRO_W + x] == '\xDB')
                 if(buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)] != ' '){
                     stringstream t;
@@ -402,23 +394,23 @@ BOOL NoCollision(int dx, int dy){
 }
 
 void HandleKeyPress() {
-    
     if (GetAsyncKeyState(VK_ESCAPE)) {
         HandleNormalExit();
     }
-    if (GetAsyncKeyState(VK_LEFT) && NoCollision(-1, 0)){
+    if (GetAsyncKeyState(VK_LEFT) && NoCollision(-1, 0, 0)){
         tetro_x -= 1;
         return;
     }
-    if (GetAsyncKeyState(VK_RIGHT) && NoCollision(1, 0)){
+    if (GetAsyncKeyState(VK_RIGHT) && NoCollision(1, 0, 0)){
         tetro_x += 1;
         return;
     }
-    if (GetAsyncKeyState(VK_DOWN) && NoCollision(0, 1)){
+    if (GetAsyncKeyState(VK_DOWN) && NoCollision(0, 1, 0)){
         tetro_y +=1;
         return;
     }
-    if (GetAsyncKeyState(VK_UP) ){
+    if (GetAsyncKeyState(VK_UP) && NoCollision(0, 0, 1) && !vk_up_down){
+        vk_up_down = TRUE;
         cur_tetro_orientation++;
         if(cur_tetro_orientation==4){
             cur_tetro_type++;
@@ -427,16 +419,16 @@ void HandleKeyPress() {
         if(cur_tetro_type >= NUM_TETRO_TYPE){
             cur_tetro_type = 0;
         }
-        Sleep(100);
         return;
+    }else if (!GetAsyncKeyState(VK_UP)){
+        vk_up_down = FALSE;
     }
-
 }
 
 void UpdateScore() {
     stringstream msg_score;
     msg_score << "Score: " << score;
-    strcpy(&buf_display[2], msg_score.str().c_str());
+    ShowMsg(msg_score, 2);
 }
 
 void RenderDidplay() {
@@ -445,26 +437,73 @@ void RenderDidplay() {
                                  &chars_written);
 }
 
-void StartGameLoop() {
-    while (1) {
-        ClearDisplay();
-        UpdateScore();
-        DrawBoundaries();
-        HandleKeyPress();
+void GenerateNewTetromino() {
+    tetro_x = CONSOLE_W / 2 - TETRO_W / 2;  // init xpos at the middle
+    tetro_y = 2;                            // init y pos on the top
+    srand(time(NULL));
+    cur_tetro_type = rand() % NUM_TETRO_TYPE;  // random type
+    cur_tetro_orientation = rand() % 4;        // random oritentation
+}
 
-        DrawTetromino();
+void GameOver(){
+    stringstream t; 
+    t << "Game Over!";
+    ShowMsg(t);
+    RenderDidplay();
+    Sleep(3000);
+}
 
-        
-
-        RenderDidplay();
-        Sleep(game_speed);
-
+void SaveTetrominoRelics(){
+    for(int y = 0 ; y < TETRO_H; y++){
+        for(int x = 0; x < TETRO_W; x++){
+            string tetro = tetromino_repo[cur_tetro_type][cur_tetro_orientation];
+            if(tetro[y * TETRO_W + x] == '\xDB'){
+                buf_relics[(tetro_y + y) * CONSOLE_W + (tetro_x + x)] = TRUE;
+                buf_display[(tetro_y + y) * CONSOLE_W + (tetro_x + x)] = '\xDB';
+            }
+        }
     }
+}
+        
+// try to lower tetromino by 1 cell
+void TryLowerTetromino(){
+    speed_count++;
+    if(speed_count == GAME_SPEED){
+        speed_count = 0;
+        if (!NoCollision(0, 1, 0)) {  // if collision
+            SaveTetrominoRelics();
+            GenerateNewTetromino();
+        } else {  // if no collision
+            tetro_y++;
+        }
+    }
+}
+
+void StartGameLoop() {
+    GenerateNewTetromino();  // init the first tetromino
+    DrawBoundaries();  
+    ClearDisplay();
+
+    while (1) {
+        UpdateScore();
+        // When the new tetromino immedately collides,
+        // the screen is full -->> quit game loop
+        if(!NoCollision(0, 0, 0)){
+            break;
+        }
+        HandleKeyPress();
+        DrawTetromino();
+        RenderDidplay();
+        ClearDisplay();
+        TryLowerTetromino();
+
+        Sleep(SLEEP_TIME);
+    }
+    GameOver();
 }
 
 int main(int argc, char* argv[]) {
     InitPlayField();
     StartGameLoop();
-
     return 0;
 }

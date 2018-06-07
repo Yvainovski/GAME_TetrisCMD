@@ -22,7 +22,8 @@
         "type_traits": "cpp",
         "typeinfo": "cpp",
         "array": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "xlocale": "cpp"
     },
     
 }

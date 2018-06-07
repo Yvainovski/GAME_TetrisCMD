@@ -60,18 +60,18 @@ static const int CONSOLE_H = 44;
 static HANDLE console_screen;
 static DWORD chars_written = 0;
 static char* buf_display = 0;
-static map<char, vector<string>> tetromino_types;
+static map<char, vector<string>> tetromino_repo;
 
 // Game Stats
-enum TetroType { I, O, Z, T, L };
-static const int NUM_TETRO_TYPE = 5;
+enum TetroType { I, O, Z, T, L, S, J};
+static const int NUM_TETRO_TYPE = 7;
 static const int TETRO_W = 10;
 static const int TETRO_H = 4;
-static int tetro_x = CONSOLE_W / 2 - TETRO_W / 2 ;  // init x pos at the middle
+static int tetro_x = 0 ;  // init xpos at the middle
 static int tetro_y = 2;  // init y pos on the top
 static int cur_tetro_type = 0;
 static int cur_tetro_orientation = 0;
-static int game_speed = 500;  // milisecond pause between frames
+static int game_speed = 50;  // milisecond pause between frames
 static int score = 0;
 
 void BufCleanUp() {
@@ -108,6 +108,9 @@ void InitTetrominoes(){
     vector<string> Zs(4);
     vector<string> Ts(4);
     vector<string> Ls(4);
+    vector<string> Ss(4);
+    vector<string> Js(4);
+
     
     // tmp var for making tetromino blocks
     string tmp = "";
@@ -217,12 +220,66 @@ void InitTetrominoes(){
     Ls[3] = tmp;
     tmp = "";
 
-    tetromino_types[TetroType::I] = Is;
-    tetromino_types[TetroType::O] = Os;
-    tetromino_types[TetroType::Z] = Zs;
-    tetromino_types[TetroType::T] = Ts;
-    tetromino_types[TetroType::L] = Ls;
+    // S 0 2 
+    tmp += "....\xDB\xDB\xDB\xDB..";  
+    tmp += "..\xDB\xDB\xDB\xDB...."; 
+    tmp += "..........";    
+    tmp += "..........";
+    Ss[0] = tmp;
+    Ss[2] = tmp;
+    tmp = "";
+    // S 1 3 
+    tmp += "...\xDB\xDB.....";  
+    tmp += "...\xDB\xDB\xDB\xDB...";  
+    tmp += ".....\xDB\xDB..."; 
+    tmp += "..........";
+    Ss[1] = tmp;
+    Ss[3] = tmp;
+    tmp = "";
+
+    // J0
+    tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";
+    tmp += "......\xDB\xDB..";
+    tmp += "..........";
+    tmp += "..........";
+    Js[0] = tmp;
+    tmp = "";
+    // J1
+    tmp += ".....\xDB\xDB...";
+    tmp += ".....\xDB\xDB...";
+    tmp += "...\xDB\xDB\xDB\xDB...";
+    tmp += "..........";
+    Js[1] = tmp;
+    tmp = "";
+    // J2
+    tmp += "..\xDB\xDB......";
+    tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";
+    tmp += "..........";
+    tmp += "..........";
+    Js[2] = tmp;
+    tmp = ""; 
+    // J3
+    tmp += "...\xDB\xDB\xDB\xDB...";
+    tmp += "...\xDB\xDB.....";
+    tmp += "...\xDB\xDB.....";
+    tmp += "..........";
+    Js[3] = tmp;
+    tmp = "";
+   
+   
+
+    tetromino_repo[TetroType::I] = Is;
+    tetromino_repo[TetroType::O] = Os;
+    tetromino_repo[TetroType::Z] = Zs;
+    tetromino_repo[TetroType::T] = Ts;
+    tetromino_repo[TetroType::L] = Ls;
+    tetromino_repo[TetroType::S] = Ss;
+    tetromino_repo[TetroType::J] = Js;
+
 }
+
+
+
 
 
 
@@ -295,30 +352,85 @@ void DrawBoundaries() {
     buf_display[(CONSOLE_H - 2) * CONSOLE_W + (CONSOLE_W - 2)] = 188; //bottom right
 }
 
+void ShowMsg(stringstream const& t){
+    strcpy(&buf_display[50], t.str().c_str());
+}
+
 // Draw the falling tetromino
 void DrawTetromino() {
-    string tetromino = tetromino_types[cur_tetro_type][cur_tetro_orientation];
-    // string tetromino = tetromino_types[0][2];
+    string tetromino = tetromino_repo[cur_tetro_type][cur_tetro_orientation];
+    // string tetromino = tetromino_repo[5][1];
     stringstream t;
     t << "TYPE "<< cur_tetro_type << ", ORI" << cur_tetro_orientation;
-    strcpy(&buf_display[50], t.str().c_str());
+    t << " t_X:"<< tetro_x << ", t_Y:" <<tetro_y;
+    // ShowMsg(t);
     for (int y = 0; y < TETRO_H; y++) {
         for (int x = 0; x < TETRO_W; x++) {
             char pixel = tetromino[y * TETRO_W + x];
             // pixel = RotateTetromino(tetromino, x, y, 90);
-            if(pixel != '.' || true) {
+            if(pixel != '.'){
                 buf_display[(tetro_y + y) * CONSOLE_W + (tetro_x + x)] = pixel;
             }
         }
     }
-    cur_tetro_orientation++;
-    if(cur_tetro_orientation==4){
-        cur_tetro_orientation = 0;
-        cur_tetro_type++;
+}
+
+// check if tetro collides with other cells for a movement.
+// dx: horizontal changes. dy: vertical changes.
+BOOL NoCollision(int dx, int dy){
+    int cur_x = tetro_x + dx;
+    int cur_y = tetro_y + dy;
+    
+    for(int y = 0 ; y < TETRO_H; y++){
+        for(int x = 0; x < TETRO_W; x++){
+            string tetro = tetromino_repo[cur_tetro_type][cur_tetro_orientation];
+            if(tetro[y * TETRO_W + x] == '\xDB')
+                if(buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)] != ' '){
+                    stringstream t;
+                    t << "x:" << x  << " y: "<< y;
+                    t << tetro[y * TETRO_W + x];
+                    t << "nx:"<< cur_x << " ny:" << cur_y;
+                    t << buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)];
+                    t << "?x:" << cur_x + x << " ?y: "<< (cur_y + y);
+                    
+                    ShowMsg(t);
+                    return FALSE; 
+                }
+        }
     }
-    if(cur_tetro_type >= NUM_TETRO_TYPE ){
-        cur_tetro_type = 0;
+    return TRUE;
+}
+
+void HandleKeyPress() {
+    
+    if (GetAsyncKeyState(VK_ESCAPE)) {
+        HandleNormalExit();
     }
+    if (GetAsyncKeyState(VK_LEFT) && NoCollision(-1, 0)){
+        tetro_x -= 1;
+        return;
+    }
+    if (GetAsyncKeyState(VK_RIGHT) && NoCollision(1, 0)){
+        tetro_x += 1;
+        return;
+    }
+    if (GetAsyncKeyState(VK_DOWN) && NoCollision(0, 1)){
+        tetro_y +=1;
+        return;
+    }
+    if (GetAsyncKeyState(VK_UP) ){
+        cur_tetro_orientation++;
+        if(cur_tetro_orientation==4){
+            cur_tetro_type++;
+            cur_tetro_orientation = 0;
+        }
+        if(cur_tetro_type >= NUM_TETRO_TYPE){
+            cur_tetro_type = 0;
+        }
+        Sleep(100);
+        return;
+    }
+
 }
 
 void UpdateScore() {
@@ -333,19 +445,16 @@ void RenderDidplay() {
                                  &chars_written);
 }
 
-void HandleKeyPress() {
-    if (GetAsyncKeyState(VK_ESCAPE)) {
-        HandleNormalExit();
-    }
-}
-
 void StartGameLoop() {
     while (1) {
         ClearDisplay();
-        HandleKeyPress();
         UpdateScore();
         DrawBoundaries();
+        HandleKeyPress();
+
         DrawTetromino();
+
+        
 
         RenderDidplay();
         Sleep(game_speed);

@@ -21,7 +21,8 @@
         "system_error": "cpp",
         "type_traits": "cpp",
         "typeinfo": "cpp",
-        "array": "cpp"
+        "array": "cpp",
+        "sstream": "cpp"
     },
     
 }

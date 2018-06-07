@@ -63,15 +63,24 @@ static char* buf_display = 0;
 static map<char, vector<string>> tetromino_types;
 
 // Game Stats
+enum TetroType { I, O, Z, T, L };
+static const int NUM_TETRO_TYPE = 5;
 static const int TETRO_W = 10;
 static const int TETRO_H = 4;
 static int tetro_x = CONSOLE_W / 2 - TETRO_W / 2 ;  // init x pos at the middle
 static int tetro_y = 2;  // init y pos on the top
+static int cur_tetro_type = 0;
+static int cur_tetro_orientation = 0;
 static int game_speed = 500;  // milisecond pause between frames
 static int score = 0;
 
 void BufCleanUp() {
     if (buf_display) delete[] buf_display;
+}
+
+void HandleNormalExit() {
+    BufCleanUp();
+    exit(0);
 }
 
 void HandleErrorExit(string msg, DWORD err) {
@@ -86,11 +95,6 @@ void HandleErrorExit(string msg, DWORD err) {
     exit(1);
 }
 
-void HandleNormalExit() {
-    BufCleanUp();
-    exit(0);
-}
-
 void ClearDisplay() {
     for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
         buf_display[i] = ' ';
@@ -99,58 +103,125 @@ void ClearDisplay() {
 
 // Make all tetroes (╯°□°）╯︵ [_]||
 void InitTetrominoes(){
-    vector<string> Is = {"","","",""};
-    vector<string> Os;
-    vector<string> Zs;
-    vector<string> Ts;
-    vector<string> Ls;
+    vector<string> Is(4);
+    vector<string> Os(4);
+    vector<string> Zs(4);
+    vector<string> Ts(4);
+    vector<string> Ls(4);
     
-    // string I = "";
-    // string O = "";
-    // string Z = "";
-    // string T = "";
-    // string L = "";
+    // tmp var for making tetromino blocks
     string tmp = "";
 
-    // I1
+    // I 0 2 
     tmp += "....\xDB\xDB....";
     tmp += "....\xDB\xDB....";  
     tmp += "....\xDB\xDB....";  
     tmp += "....\xDB\xDB....";
-    Is.insert(Is.begin(),tmp);
-    Is.insert(Is.begin()+2,tmp);
+    Is[0] = tmp;
+    Is[2] = tmp;
     tmp = "";
-    // I2
+    
+    // I 1 3
     tmp += "..........";
     tmp += ".\xDB\xDB\xDB\xDB\xDB\xDB\xDB\xDB.";  
     tmp += "..........";
     tmp += "..........";
-    Is.insert(Is.begin()+1,tmp);
-    Is.insert(Is.begin()+3,tmp);
+    Is[1] = tmp;
+    Is[3] = tmp;
     tmp = "";
+
+    // O 0 1 2 3
+    tmp += "...\xDB\xDB\xDB\xDB...";  
+    tmp += "...\xDB\xDB\xDB\xDB..."; 
+    tmp += "..........";
+    tmp += "..........";
+    Os[0] = tmp;
+    Os[1] = tmp;
+    Os[2] = tmp;
+    Os[3] = tmp;
+    tmp = "";
+
+    // Z 0 2 
+    tmp += "..\xDB\xDB\xDB\xDB....";  
+    tmp += "....\xDB\xDB\xDB\xDB.."; 
+    tmp += "..........";    
+    tmp += "..........";
+    Zs[0] = tmp;
+    Zs[2] = tmp;
+    tmp = "";
+    // Z 1 3 
+    tmp += ".....\xDB\xDB...";  
+    tmp += "...\xDB\xDB\xDB\xDB...";  
+    tmp += "...\xDB\xDB....."; 
+    tmp += "..........";
+    Zs[1] = tmp;
+    Zs[3] = tmp;
+    tmp = "";
+
    
-    // T1
+    // T0
     tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";  
     tmp += "....\xDB\xDB....";
     tmp += "..........";
     tmp += "..........";
-    Ts.push_back(tmp);
+    Ts[0] = tmp;
     tmp = "";
-    // T2
+    // T1
     tmp += ".....\xDB\xDB...";
     tmp += "...\xDB\xDB\xDB\xDB...";  
     tmp += ".....\xDB\xDB..."; 
     tmp += "..........";
-    Ts.push_back(tmp);
+    Ts[1] = tmp;
+    tmp = "";
+    // T2
+    tmp += "....\xDB\xDB....";
+    tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";  
+    tmp += "..........";
+    tmp += "..........";
+    Ts[2] = tmp;
+    tmp = "";
+    // T3
+    tmp += "...\xDB\xDB.....";
+    tmp += "...\xDB\xDB\xDB\xDB...";  
+    tmp += "...\xDB\xDB....."; 
+    tmp += "..........";
+    Ts[3] = tmp;
     tmp = "";
 
-    tetromino_types['I'] = Is;
-    tetromino_types['T'] = Ts;
-    // tetrominoes.push_back(I);
-    // tetrominoes.push_back(O);
-    // tetrominoes.push_back(Z);
-    // tetrominoes.push_back(T);
-    // tetrominoes.push_back(L);
+    // L0
+    tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";
+    tmp += "..\xDB\xDB......";
+    tmp += "..........";
+    tmp += "..........";
+    Ls[0] = tmp;
+    tmp = "";
+    // L1
+    tmp += "...\xDB\xDB\xDB\xDB...";
+    tmp += ".....\xDB\xDB...";
+    tmp += ".....\xDB\xDB...";
+    tmp += "..........";
+    Ls[1] = tmp;
+    tmp = "";
+    // L2
+    tmp += "......\xDB\xDB..";
+    tmp += "..\xDB\xDB\xDB\xDB\xDB\xDB..";
+    tmp += "..........";
+    tmp += "..........";
+    Ls[2] = tmp;
+    tmp = ""; 
+    // L3
+    tmp += "...\xDB\xDB.....";
+    tmp += "...\xDB\xDB.....";
+    tmp += "...\xDB\xDB\xDB\xDB...";
+    tmp += "..........";
+    Ls[3] = tmp;
+    tmp = "";
+
+    tetromino_types[TetroType::I] = Is;
+    tetromino_types[TetroType::O] = Os;
+    tetromino_types[TetroType::Z] = Zs;
+    tetromino_types[TetroType::T] = Ts;
+    tetromino_types[TetroType::L] = Ls;
 }
 
 
@@ -226,7 +297,11 @@ void DrawBoundaries() {
 
 // Draw the falling tetromino
 void DrawTetromino() {
-    string tetromino = tetromino_types['I'][3];
+    string tetromino = tetromino_types[cur_tetro_type][cur_tetro_orientation];
+    // string tetromino = tetromino_types[0][2];
+    stringstream t;
+    t << "TYPE "<< cur_tetro_type << ", ORI" << cur_tetro_orientation;
+    strcpy(&buf_display[50], t.str().c_str());
     for (int y = 0; y < TETRO_H; y++) {
         for (int x = 0; x < TETRO_W; x++) {
             char pixel = tetromino[y * TETRO_W + x];
@@ -235,6 +310,14 @@ void DrawTetromino() {
                 buf_display[(tetro_y + y) * CONSOLE_W + (tetro_x + x)] = pixel;
             }
         }
+    }
+    cur_tetro_orientation++;
+    if(cur_tetro_orientation==4){
+        cur_tetro_orientation = 0;
+        cur_tetro_type++;
+    }
+    if(cur_tetro_type >= NUM_TETRO_TYPE ){
+        cur_tetro_type = 0;
     }
 }
 
@@ -267,7 +350,6 @@ void StartGameLoop() {
         RenderDidplay();
         Sleep(game_speed);
 
-        // tetro_y++;
     }
 }
 

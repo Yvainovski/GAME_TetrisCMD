@@ -63,21 +63,22 @@ static DWORD chars_written = 0;
 static char* buf_display = 0;
 static map<char, vector<string>> tetromino_repo;
 
-// Game Stats
-static BOOL* buf_relics = 0;  // holds tetromino relics
-enum TetroType { I, O, Z, T, L, S, J};
-static const int NUM_TETRO_TYPE = 7;
+// Game Configs
+enum TetroType { I, O, Z, T, L, S, J, Savior};
+static const int NUM_TETRO_TYPE = 8;
 static const int TETRO_W = 10;
 static const int TETRO_H = 4;
 static const int SLEEP_TIME = 20;  // milisecond pause between frames
+// Game Stats
+static BOOL* buf_relics = 0;  // holds tetromino relics
 static double game_speed = 20;  
 static int speed_count = 0;
+static int score = 0;
 static int num_pieces = 0;  // generated pieces so far
 static int tetro_x = CONSOLE_W / 2 - TETRO_W / 2 ;  // init xpos at the middle
 static int tetro_y = 2;  // init y pos on the top
 static int cur_tetro_type = 0; 
 static int cur_tetro_orientation = 0;    
-static int score = 0;
 static BOOL vk_up_down = FALSE;  // If VK_UP is pressed
 
 
@@ -114,6 +115,7 @@ void ClearDisplay() {
     }
 }
 
+
 // Make all tetroes (╯°□°）╯︵ [_]||
 void InitTetrominoes(){
     vector<string> Is(4);
@@ -123,6 +125,7 @@ void InitTetrominoes(){
     vector<string> Ls(4);
     vector<string> Ss(4);
     vector<string> Js(4);
+    vector<string> Saviors(4);
 
     // tmp var for making tetromino blocks
     string tmp = "";
@@ -276,6 +279,18 @@ void InitTetrominoes(){
     tmp += "..........";
     Js[3] = tmp;
     tmp = "";
+
+    // Savior Blocks
+    tmp += ".....\xDB....";
+    tmp += "..........";
+    tmp += "..........";
+    tmp += "..........";
+    Saviors[0] = tmp;
+    Saviors[1] = tmp;
+    Saviors[2] = tmp;
+    Saviors[3] = tmp;
+    tmp = "";
+
    
     tetromino_repo[TetroType::I] = Is;
     tetromino_repo[TetroType::O] = Os;
@@ -284,7 +299,17 @@ void InitTetrominoes(){
     tetromino_repo[TetroType::L] = Ls;
     tetromino_repo[TetroType::S] = Ss;
     tetromino_repo[TetroType::J] = Js;
+    tetromino_repo[TetroType::Savior] = Saviors;
 
+}
+
+void InitDisplayRelicsBuf(){
+    buf_display = new char[CONSOLE_W * CONSOLE_H];
+    buf_relics = new BOOL[CONSOLE_W * CONSOLE_H];
+    for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
+            buf_display[i] = ' ';
+            buf_relics[i] = FALSE;
+    }
 }
 
 // Initialize display console screen and init all variables
@@ -295,12 +320,7 @@ void InitPlayField() {
     SMALL_RECT window_size = {0, 0, (short)(CONSOLE_W - 1),
                               (short)(CONSOLE_H - 1)};
     // Init empty display buf and relic buf
-    buf_display = new char[CONSOLE_W * CONSOLE_H];
-    buf_relics = new BOOL[CONSOLE_W * CONSOLE_H];
-    for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
-            buf_display[i] = ' ';
-            buf_relics[i] = FALSE;
-    }
+    InitDisplayRelicsBuf();
     // Init all Tetronimoes 
     InitTetrominoes();
 
@@ -415,9 +435,13 @@ void HandleKeyPress() {
     }
 }
 
-void UpdateScore() {
+void UpdateTopInfo() {
     stringstream msg_score;
     msg_score << "Score: " << score;
+    msg_score << "      ";
+    msg_score << "Pieces: "<< num_pieces;
+    msg_score << "      ";
+    msg_score << "Speed: "<< game_speed;
     ShowMsg(msg_score, 2);
 }
 
@@ -438,11 +462,45 @@ void GenerateNewTetromino() {
 }
 
 void GameOver(){
-    stringstream t; 
-    t << "Game Over!";
-    ShowMsg(t);
+    const int PROMPT_W = CONSOLE_W / 2 + 12;
+    const int PROMPT_H = 10;
+    const int PROMPT_POS_X = CONSOLE_W / 2 - PROMPT_W / 2;
+    const int PROMPT_POS_Y = CONSOLE_H / 2 - PROMPT_H / 2;
+    char buf_game_over_prompt[PROMPT_W * PROMPT_H];
+    
+    for(int y = 0; y < PROMPT_H; y++){
+        for(int x= 0; x < CONSOLE_W; x++){
+            if(x==0 || x == PROMPT_W -1 || y==0 || y == PROMPT_H - 1 )
+                buf_game_over_prompt[y * PROMPT_W + x ] = 178;
+            else
+                buf_game_over_prompt[y * PROMPT_W + x ] = ' ';
+        }
+    }
+    stringstream str1;
+    str1 << "GAME OVER!";
+    stringstream str2;
+    str2 << "Your Score: ";
+    str2 << score;
+    stringstream str3;
+    str3 << "Press SPACE to continue...";
+
+    string t = buf_game_over_prompt;
+    t.replace(2 * PROMPT_W + (PROMPT_W / 2 - str1.str().length() / 2),
+              str1.str().length(), str1.str());
+    t.replace(5 * PROMPT_W + 3, str2.str().length(), str2.str());
+    t.replace(7 * PROMPT_W + 3, str3.str().length(), str3.str());
+    
+    const char* msg = t.c_str();
+    for(int y = 0; y < PROMPT_H ; y++){
+        int pos = (y + PROMPT_POS_Y) * CONSOLE_W + PROMPT_POS_X;
+        strncpy(&buf_display[pos], &msg[y * PROMPT_W], PROMPT_W);
+    }
     RenderDidplay();
-    Sleep(3000);
+   
+    while(1){
+        if(GetAsyncKeyState(VK_SPACE) || GetAsyncKeyState(VK_RETURN))
+            break; 
+    }
 }
 
 void SaveTetrominoRelics(){
@@ -500,6 +558,7 @@ void TryClearFullLineRelics() {
         if (is_full) {
             RelicsRowClearAnimation(y);
             RelicsRowShift(y);
+            score += 25 - game_speed;
             y++;  //last line lowers by 1 row
         }
     }
@@ -530,19 +589,28 @@ void TryLowerTetromino(){
     }
 }
 
-void StartGameLoop() {
+void InitGameStat(){
+    score = 0;
+    game_speed = 20; 
+    num_pieces = 0;  
+    InitDisplayRelicsBuf();
     GenerateNewTetromino();  // init the first tetromino
-    DrawBoundaries();  
+    DrawBoundaries(); 
     ClearDisplay();
+}
 
+void StartGameLoop() {
+    InitGameStat();
     while (1) {
-        UpdateScore();
+        UpdateTopInfo();
         // When the new tetromino immedately collides,
         // the screen is full -->> quit game loop GameOver
         if(!NoCollision(0, 0, 0)){
             DrawTetromino();
             RenderDidplay();
-            break;
+            GameOver();
+            InitGameStat();
+            continue;
         }
         HandleKeyPress();
         DrawTetromino();
@@ -553,8 +621,6 @@ void StartGameLoop() {
 
         Sleep(SLEEP_TIME);
     }
-
-    GameOver();
 }
 
 int main(int argc, char* argv[]) {

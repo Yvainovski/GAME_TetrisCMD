@@ -451,6 +451,14 @@ void UpdateTopInfo() {
     ShowMsg(msg_score, 2);
 }
 
+// For any real-time in-game message
+// Help message as default.
+void UpdateBottomInfo() {
+    stringstream msg_score;
+    msg_score << "[ESC]: Exit";
+    ShowMsg(msg_score, (CONSOLE_H - 1) * CONSOLE_W + 2);
+}
+
 void RenderDidplay() {
     WriteConsoleOutputCharacterA(console_screen, buf_display,
                                  CONSOLE_W * CONSOLE_H, COORD({0, 0}),
@@ -504,6 +512,8 @@ void GameOver(){
     RenderDidplay();
    
     while(1){
+        if(GetAsyncKeyState(VK_ESCAPE))
+            HandleNormalExit();
         if(GetAsyncKeyState(VK_SPACE) || GetAsyncKeyState(VK_RETURN))
             break; 
     }
@@ -605,12 +615,28 @@ void InitGameStat(){
     DrawBoundaries(); 
 }
 
+void SplashScreen(){
+    while(1){
+        strcpy(buf_display,"\x1\x3D\x28\x1\x5F\x1\x29\x3D");
+        RenderDidplay();
+
+        if(GetAsyncKeyState(VK_ESCAPE))
+            HandleNormalExit();
+        if(GetAsyncKeyState(VK_SPACE) || GetAsyncKeyState(VK_RETURN))
+            break; 
+    }
+    for(int i = 0; i < CONSOLE_W * CONSOLE_H; i ++){
+        buf_display[i] = ' ';
+    }
+}
+
 void StartGameLoop() {
     InitGameStat();
     while (1) {
         UpdateTopInfo();
+        UpdateBottomInfo();
         // When the new tetromino immedately collides,
-        // the screen is full -->> quit game loop GameOver
+        // the screen is full -->> quit game loop Game Over
         if(!NoCollision(0, 0, 0)){
             DrawTetromino();
             RenderDidplay();
@@ -631,6 +657,7 @@ void StartGameLoop() {
 
 int main(int argc, char* argv[]) {
     InitPlayField();
+    SplashScreen();
     StartGameLoop();
     return 0;
 }

@@ -72,6 +72,7 @@ static const int TETRO_H = 4;
 static const int SLEEP_TIME = 20;
 static const int GAME_SPEED = 20;  // milisecond pause between frames
 static int speed_count = 0;
+static int num_pieces = 0;  // dropped pieces so far
 static int tetro_x = CONSOLE_W / 2 - TETRO_W / 2 ;  // init xpos at the middle
 static int tetro_y = 2;  // init y pos on the top
 static int cur_tetro_type = 0; 
@@ -379,12 +380,10 @@ BOOL NoCollision(int dx, int dy, int dr){
             if(tetro[y * TETRO_W + x] == '\xDB')
                 if(buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)] != ' '){
                     stringstream t;
-                    t << "x:" << x  << " y: "<< y;
-                    t << tetro[y * TETRO_W + x];
                     t << "nx:"<< cur_x << " ny:" << cur_y;
                     t << buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)];
                     t << "?x:" << cur_x + x << " ?y: "<< (cur_y + y);
-                    
+                    t << ", pieces: " << num_pieces;
                     ShowMsg(t);
                     return FALSE; 
                 }
@@ -413,11 +412,7 @@ void HandleKeyPress() {
         vk_up_down = TRUE;
         cur_tetro_orientation++;
         if(cur_tetro_orientation==4){
-            cur_tetro_type++;
             cur_tetro_orientation = 0;
-        }
-        if(cur_tetro_type >= NUM_TETRO_TYPE){
-            cur_tetro_type = 0;
         }
         return;
     }else if (!GetAsyncKeyState(VK_UP)){
@@ -443,6 +438,7 @@ void GenerateNewTetromino() {
     srand(time(NULL));
     cur_tetro_type = rand() % NUM_TETRO_TYPE;  // random type
     cur_tetro_orientation = rand() % 4;        // random oritentation
+    num_pieces++;
 }
 
 void GameOver(){
@@ -464,7 +460,20 @@ void SaveTetrominoRelics(){
         }
     }
 }
-        
+
+
+
+// Check if any line is full. If full, clear the line
+void TryClearFullLineRelics(){
+    for(int y = CONSOLE_H - 3; y > 1; y--){
+        for (int x = CONSOLE_W - 3; x < 1; x ++){
+            if(buf_display[y * CONSOLE_W + x] == ' '){
+                continue;
+            }
+        }
+    }
+}
+
 // try to lower tetromino by 1 cell
 void TryLowerTetromino(){
     speed_count++;
@@ -487,18 +496,22 @@ void StartGameLoop() {
     while (1) {
         UpdateScore();
         // When the new tetromino immedately collides,
-        // the screen is full -->> quit game loop
+        // the screen is full -->> quit game loop GameOver
         if(!NoCollision(0, 0, 0)){
+            DrawTetromino();
+            RenderDidplay();
             break;
         }
         HandleKeyPress();
         DrawTetromino();
         RenderDidplay();
+        
         ClearDisplay();
         TryLowerTetromino();
 
         Sleep(SLEEP_TIME);
     }
+
     GameOver();
 }
 

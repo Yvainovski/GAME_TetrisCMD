@@ -69,16 +69,17 @@ enum TetroType { I, O, Z, T, L, S, J};
 static const int NUM_TETRO_TYPE = 7;
 static const int TETRO_W = 10;
 static const int TETRO_H = 4;
-static const int SLEEP_TIME = 20;
-static const int GAME_SPEED = 20;  // milisecond pause between frames
+static const int SLEEP_TIME = 20;  // milisecond pause between frames
+static double game_speed = 20;  
 static int speed_count = 0;
-static int num_pieces = 0;  // dropped pieces so far
+static int num_pieces = 0;  // generated pieces so far
 static int tetro_x = CONSOLE_W / 2 - TETRO_W / 2 ;  // init xpos at the middle
 static int tetro_y = 2;  // init y pos on the top
 static int cur_tetro_type = 0; 
 static int cur_tetro_orientation = 0;    
 static int score = 0;
 static BOOL vk_up_down = FALSE;  // If VK_UP is pressed
+
 
 void BufCleanUp() {
     if (buf_display) delete[] buf_display;
@@ -379,12 +380,6 @@ BOOL NoCollision(int dx, int dy, int dr){
             string tetro = tetromino_repo[cur_tetro_type][cur_orit];
             if(tetro[y * TETRO_W + x] == '\xDB')
                 if(buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)] != ' '){
-                    stringstream t;
-                    t << "nx:"<< cur_x << " ny:" << cur_y;
-                    t << buf_display[(cur_y + y) * CONSOLE_W + (cur_x + x)];
-                    t << "?x:" << cur_x + x << " ?y: "<< (cur_y + y);
-                    t << ", pieces: " << num_pieces;
-                    ShowMsg(t);
                     return FALSE; 
                 }
         }
@@ -437,6 +432,7 @@ void GenerateNewTetromino() {
     tetro_y = 2;                            // init y pos on the top
     srand(time(NULL));
     cur_tetro_type = rand() % NUM_TETRO_TYPE;  // random type
+    // cur_tetro_type = 0;
     cur_tetro_orientation = rand() % 4;        // random oritentation
     num_pieces++;
 }
@@ -461,27 +457,73 @@ void SaveTetrominoRelics(){
     }
 }
 
+void RelicsRowClearAnimation(int y){
+    // flicker three times
+    for (int i = 0 ; i< 3; i++){
+        for (int x = CONSOLE_W - 3; x > 1; x--) {
+            buf_display[y * CONSOLE_W + x] = ' ';
+        }
+        RenderDidplay();
+        Sleep(10);
+        for (int x = CONSOLE_W - 3; x > 1; x--) {
+            buf_display[y * CONSOLE_W + x] = '\xDB';
+        }
+        RenderDidplay();
+        Sleep(10);
+    }
+}
 
-
-// Check if any line is full. If full, clear the line
-void TryClearFullLineRelics(){
-    for(int y = CONSOLE_H - 3; y > 1; y--){
-        for (int x = CONSOLE_W - 3; x < 1; x ++){
-            if(buf_display[y * CONSOLE_W + x] == ' '){
-                continue;
+void RelicsRowShift(int row) {
+    for (int y = row; y > 1; y--) {
+        for (int x = CONSOLE_W - 3; x > 1; x--) {
+            if (y == 2) {  // top-most row is always empty
+                buf_relics[y * CONSOLE_W + x] = FALSE;
+                buf_display[y * CONSOLE_W + x] = ' ';
+            }else{
+                buf_relics[y * CONSOLE_W + x] = 
+                    buf_relics[(y - 1) * CONSOLE_W + x];
+                buf_display[y * CONSOLE_W + x] =
+                    buf_display[(y - 1) * CONSOLE_W + x];
             }
         }
     }
 }
 
+// Check if any line is full. If full, clear the line
+void TryClearFullLineRelics() {
+    for (int y = CONSOLE_H - 3; y > 1; y--) {
+        BOOL is_full = TRUE;
+        for (int x = CONSOLE_W - 3; x > 1; x--) {
+            // If there is an empty slot, is_full becomes FALSE
+            is_full &= buf_relics[y * CONSOLE_W + x];
+        }
+        if (is_full) {
+            RelicsRowClearAnimation(y);
+            RelicsRowShift(y);
+            y++;  //last line lowers by 1 row
+        }
+    }
+}
+
+
+void GameSpeedAdjuster(){
+    game_speed  = game_speed - 0.5 > 2 ? game_speed - 0.5 : 2;
+    stringstream t;
+    t << "Game sppeed : " << game_speed;
+    ShowMsg(t);
+}
+
 // try to lower tetromino by 1 cell
 void TryLowerTetromino(){
     speed_count++;
-    if(speed_count == GAME_SPEED){
+    if(speed_count >= game_speed){
         speed_count = 0;
         if (!NoCollision(0, 1, 0)) {  // if collision
             SaveTetrominoRelics();
+            TryClearFullLineRelics();
             GenerateNewTetromino();
+            // GameSpeedAdjuster();
+
         } else {  // if no collision
             tetro_y++;
         }

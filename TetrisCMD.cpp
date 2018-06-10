@@ -104,6 +104,15 @@ void HandleErrorExit(string msg, DWORD err) {
     exit(1);
 }
 
+// Clear relics buf. 
+void ClearRelics() {
+    for(int y = 0; y < CONSOLE_H - 1; y++){
+        for(int x = 0; x < CONSOLE_W -1; x++){
+            buf_relics[y * CONSOLE_W + x] = FALSE;
+        }
+    }
+}
+
 // Clear display buf. Only clear content inside the boundries 
 void ClearDisplay() {
     for(int y = 2; y < CONSOLE_H - 2; y++){
@@ -303,14 +312,6 @@ void InitTetrominoes(){
 
 }
 
-void InitDisplayRelicsBuf(){
-    buf_display = new char[CONSOLE_W * CONSOLE_H];
-    buf_relics = new BOOL[CONSOLE_W * CONSOLE_H];
-    for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
-            buf_display[i] = ' ';
-            buf_relics[i] = FALSE;
-    }
-}
 
 // Initialize display console screen and init all variables
 void InitPlayField() {
@@ -320,7 +321,12 @@ void InitPlayField() {
     SMALL_RECT window_size = {0, 0, (short)(CONSOLE_W - 1),
                               (short)(CONSOLE_H - 1)};
     // Init empty display buf and relic buf
-    InitDisplayRelicsBuf();
+    buf_display = new char[CONSOLE_W * CONSOLE_H];
+    buf_relics = new BOOL[CONSOLE_W * CONSOLE_H];
+    for (int i = 0; i < CONSOLE_W * CONSOLE_H; i++) {
+            buf_display[i] = ' ';
+            buf_relics[i] = FALSE;
+    }
     // Init all Tetronimoes 
     InitTetrominoes();
 
@@ -593,10 +599,10 @@ void InitGameStat(){
     score = 0;
     game_speed = 20; 
     num_pieces = 0;  
-    InitDisplayRelicsBuf();
+    ClearRelics();
+    ClearDisplay();
     GenerateNewTetromino();  // init the first tetromino
     DrawBoundaries(); 
-    ClearDisplay();
 }
 
 void StartGameLoop() {

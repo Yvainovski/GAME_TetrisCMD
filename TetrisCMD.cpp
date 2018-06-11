@@ -336,7 +336,10 @@ void InitPlayField() {
                   GetWindowLong(console_window, GWL_STYLE) & ~WS_MAXIMIZEBOX &
                       ~WS_SIZEBOX);
     // Hide cursor
-
+    CONSOLE_CURSOR_INFO cci;
+    GetConsoleCursorInfo(console_screen, &cci);
+    cci.bVisible = FALSE;
+    SetConsoleCursorInfo(console_screen, &cci);
     // Activate new scrren
     SetConsoleActiveScreenBuffer(console_screen);
 }

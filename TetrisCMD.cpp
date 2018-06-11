@@ -68,7 +68,8 @@ enum TetroType { I, O, Z, T, L, S, J, Savior};
 static const int NUM_TETRO_TYPE = 8;
 static const int TETRO_W = 10;
 static const int TETRO_H = 4;
-static const int SLEEP_TIME = 20;  // milisecond pause between frames
+static const int SLEEP_TIME = 30;  // milisecond pause between frames
+static const int SPEED_UP_NUM = 20;  // Speed increases for every 20 tetronimos
 // Game Stats
 static BOOL* buf_relics = 0;  // holds tetromino relics
 static double game_speed = 20;  
@@ -105,11 +106,9 @@ void HandleErrorExit(string msg, DWORD err) {
 }
 
 // Clear relics buf. 
-void ClearRelics() {
-    for(int y = 0; y < CONSOLE_H - 1; y++){
-        for(int x = 0; x < CONSOLE_W -1; x++){
-            buf_relics[y * CONSOLE_W + x] = FALSE;
-        }
+void ClearRelicsBuf() {
+    for(int i = 0; i < CONSOLE_W * CONSOLE_H; i ++){
+            buf_relics[i] = FALSE;
     }
 }
 
@@ -121,6 +120,13 @@ void ClearDisplay() {
                 buf_display[y * CONSOLE_W + x] = ' ';
             }
         }
+    }
+}
+
+// Clear the entire display buf
+void ClearDisplayBuf(){
+    for(int i = 0; i < CONSOLE_W * CONSOLE_H; i ++){
+            buf_display[i] = ' ';
     }
 }
 
@@ -447,7 +453,8 @@ void UpdateTopInfo() {
     msg_score << "      ";
     msg_score << "Pieces: "<< num_pieces;
     msg_score << "      ";
-    msg_score << "Speed: "<< game_speed;
+    int gs = 41 - game_speed / 0.5;
+    msg_score << "Speed: "<< gs << "  ";
     ShowMsg(msg_score, 2);
 }
 
@@ -574,7 +581,7 @@ void TryClearFullLineRelics() {
         if (is_full) {
             RelicsRowClearAnimation(y);
             RelicsRowShift(y);
-            score += 25 - game_speed;
+            score += int(25 - game_speed);
             y++;  //last line lowers by 1 row
         }
     }
@@ -582,10 +589,8 @@ void TryClearFullLineRelics() {
 
 
 void GameSpeedAdjuster(){
-    game_speed  = game_speed - 0.5 > 2 ? game_speed - 0.5 : 2;
-    stringstream t;
-    t << "Game sppeed : " << game_speed;
-    ShowMsg(t);
+    if(num_pieces % SPEED_UP_NUM == 0)
+        game_speed  = game_speed - 0.5 > 2 ? game_speed - 0.5 : 2;
 }
 
 // try to lower tetromino by 1 cell
@@ -597,7 +602,7 @@ void TryLowerTetromino(){
             SaveTetrominoRelics();
             TryClearFullLineRelics();
             GenerateNewTetromino();
-            // GameSpeedAdjuster();
+            GameSpeedAdjuster();
 
         } else {  // if no collision
             tetro_y++;
@@ -609,24 +614,75 @@ void InitGameStat(){
     score = 0;
     game_speed = 20; 
     num_pieces = 0;  
-    ClearRelics();
+    ClearRelicsBuf();
     ClearDisplay();
     GenerateNewTetromino();  // init the first tetromino
     DrawBoundaries(); 
 }
 
-void SplashScreen(){
-    while(1){
-        strcpy(buf_display,"\x1\x3D\x28\x1\x5F\x1\x29\x3D");
-        RenderDidplay();
 
+
+void SplashScreen(){
+    const int SIGNATURE_W = 26;
+    const int SIGNATURE_H = 4;
+    string signature = "";
+    int signature_x = CONSOLE_W / 2 - SIGNATURE_W / 2;
+    // signature_x = 5;
+    int signature_y = 15;
+    int dx = 2;
+    int dy = 1;
+    
+    stringstream m;
+    for(int i = 0; i < 5; i++){
+          m << "                                            ";
+    }
+    m << "     _____          _            _          ";
+    m << "    |_   _|        | |          (_)         ";
+    m << "      | |     ___  | |_   _ __   _   ___    ";
+    m << "      | |    / _ \\ | __| | ___| | | / __\\    ";
+    m << "     | |   |  __/ | |_  | |    | | \\__ |   ";
+    m << "      \\_/    \\___|  \\__| |_|    |_| |___/  ";
+    m << "                                     _      ";
+    m << "                            \\  / /| / \\      ";
+    m << "                            \\/   |o\\_/      ";
+    for(int i = 0; i < 25; i++){
+          m << "                                            ";
+    }
+    m << "        Press SPACE to continue...          ";
+
+    signature += "                __        ";
+    signature += "|\\/| _  _ | _  |  \\ _ |_ _";
+    signature += "|  |(_||_)|(-  |__/(_||_(-";
+    signature += "       |                  ";
+
+
+    // Splash screen loop
+    while(1){
+        strcpy(buf_display,m.str().c_str());
+
+        // Draw signature
+        for(int y = 0; y < SIGNATURE_H; y++){
+            int pos = (signature_y + y) * CONSOLE_W + signature_x;
+            strncpy(&buf_display[pos], &signature[y * SIGNATURE_W], SIGNATURE_W );
+        }      
+        signature_x += dx;
+        signature_y += dy;
+        if (signature_x + SIGNATURE_W >= CONSOLE_W - 2 ||
+            signature_x <= 1) {
+            dx *= -1;
+        }
+        if (signature_y + SIGNATURE_H >= 37 ||
+            signature_y <= 14) {
+            dy *= -1;
+        }
+        // Display and key handling
+        RenderDidplay();
+        ClearDisplayBuf();
         if(GetAsyncKeyState(VK_ESCAPE))
             HandleNormalExit();
         if(GetAsyncKeyState(VK_SPACE) || GetAsyncKeyState(VK_RETURN))
             break; 
-    }
-    for(int i = 0; i < CONSOLE_W * CONSOLE_H; i ++){
-        buf_display[i] = ' ';
+        Sleep(150);
     }
 }
 
